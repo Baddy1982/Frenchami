@@ -34,7 +34,7 @@ paths:
           schema: { type: string, minLength: 1 }
       responses:
         "200":
-          description: Matching words
+          description: Matching words. An empty array is returned when the catalog has no entry for the search.
           content:
             application/json:
               schema:
