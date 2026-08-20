@@ -5,6 +5,7 @@
  * Frenchami learning API
  * OpenAPI spec version: 0.1.0
  */
+import type { LearningActivity } from './learningActivity';
 
 export interface Dashboard {
   wordsLearned: number;
@@ -14,4 +15,5 @@ export interface Dashboard {
   progress: number;
   weakSpot: string;
   recentWords: string[];
+  recentActivity: LearningActivity[];
 }
