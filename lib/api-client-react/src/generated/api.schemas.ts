@@ -59,6 +59,11 @@ export interface Quiz {
   xp: number;
 }
 
+export interface LearningActivity {
+  activity: string;
+  completedAt: string;
+}
+
 export interface Dashboard {
   wordsLearned: number;
   streak: number;
@@ -67,6 +72,7 @@ export interface Dashboard {
   progress: number;
   weakSpot: string;
   recentWords: string[];
+  recentActivity: LearningActivity[];
 }
 
 export interface QuizAttempt {
@@ -163,6 +169,7 @@ export interface TutorMessageResponse {
   correction: string | null;
   /** @nullable */
   naturalPhrase: string | null;
+  /** Always returned as an array. A single tutor-provided mistake is normalized to a one-item array. */
   mistakes: string[];
 }
 
