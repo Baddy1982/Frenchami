@@ -20,6 +20,7 @@ import { db, learnedWordsTable, learnerStatsTable, learningSessionsTable, quizAt
 import { and, desc, eq, sql } from "drizzle-orm";
 import { createLearningProgressRouter } from "./learningProgress";
 import { learningProgressStore } from "./learningProgressStore";
+import { normalizeTutorResponse } from "./tutorResponse";
 
 const router: IRouter = Router();
 type AuthenticatedRequest = Request & { userId?: string };
@@ -65,6 +66,17 @@ const dictionary = [
     level: "A1 · Beginner",
     examples: ["Salut, ça va ?", "Salut, à demain !"],
     related: ["bonjour", "coucou", "à bientôt"],
+  },
+  {
+    word: "lundi",
+    translation: "Monday",
+    definition: "The first day of the working week in France and many French-speaking places.",
+    partOfSpeech: "noun",
+    gender: "masculine",
+    pronunciation: "luhn-dee",
+    level: "A1 · Beginner",
+    examples: ["Lundi, je commence mon cours de français.", "Le magasin est fermé le lundi."],
+    related: ["mardi", "semaine", "week-end"],
   },
   {
     word: "voudrais",
@@ -263,11 +275,19 @@ router.get("/quiz/daily", (_req, res) => res.json(GetDailyQuizResponse.parse({
 
 router.get("/dashboard", requireAuth, async (req: AuthenticatedRequest, res) => {
   const learnerId = req.userId!;
-  const [learned, stats, attempts, recent] = await Promise.all([
+  const [learned, stats, attempts, recent, sessions] = await Promise.all([
     db.select({ word: learnedWordsTable.word }).from(learnedWordsTable).where(and(eq(learnedWordsTable.learnerId, learnerId), eq(learnedWordsTable.learned, true))),
     db.select({ xp: learnerStatsTable.xp }).from(learnerStatsTable).where(eq(learnerStatsTable.learnerId, learnerId)).limit(1),
     db.select({ attemptedOn: quizAttemptsTable.attemptedOn, correct: quizAttemptsTable.correct }).from(quizAttemptsTable).where(eq(quizAttemptsTable.learnerId, learnerId)).orderBy(desc(quizAttemptsTable.createdAt)),
     db.select({ word: learnedWordsTable.word }).from(learnedWordsTable).where(and(eq(learnedWordsTable.learnerId, learnerId), eq(learnedWordsTable.learned, true))).orderBy(desc(learnedWordsTable.updatedAt)).limit(4),
+    db.select({
+      activity: learningSessionsTable.activity,
+      startedAt: learningSessionsTable.startedAt,
+      completedAt: learningSessionsTable.completedAt,
+    }).from(learningSessionsTable)
+      .where(eq(learningSessionsTable.learnerId, learnerId))
+      .orderBy(desc(sql`coalesce(${learningSessionsTable.completedAt}, ${learningSessionsTable.startedAt})`))
+      .limit(8),
   ]);
   const xp = stats[0]?.xp ?? 0;
   const level = xp >= 3000 ? "B1 · Builder" : xp >= 1500 ? "A2 · Explorer" : "A1 · Starter";
@@ -275,6 +295,7 @@ router.get("/dashboard", requireAuth, async (req: AuthenticatedRequest, res) => 
   let streak = 0;
   const cursor = new Date();
   while (dates.has(cursor.toISOString().slice(0, 10))) { streak += 1; cursor.setDate(cursor.getDate() - 1); }
+  res.set("Cache-Control", "no-store");
   return res.json(GetDashboardResponse.parse({
     wordsLearned: learned.length,
     streak,
@@ -283,6 +304,10 @@ router.get("/dashboard", requireAuth, async (req: AuthenticatedRequest, res) => 
     progress: xp % 100,
     weakSpot: attempts.filter((attempt) => !attempt.correct).length ? "Past tense" : "Keep exploring",
     recentWords: recent.map(({ word }) => word),
+    recentActivity: sessions.map(({ activity, startedAt, completedAt }) => ({
+      activity,
+      completedAt: (completedAt ?? startedAt).toISOString(),
+    })),
   }));
 });
 
@@ -332,7 +357,14 @@ router.post("/tutor/message", requireAuth, async (req: AuthenticatedRequest, res
     res.status(502).json({ error: "Tutor returned an invalid response" });
     return;
   }
-  const tutorResponse = SendTutorMessageResponse.parse(parsed);
+  const parsedTutorResponse = SendTutorMessageResponse.safeParse(normalizeTutorResponse(parsed));
+  if (!parsedTutorResponse.success) {
+    req.log.error({ issues: parsedTutorResponse.error.issues }, "Tutor returned an invalid response");
+    res.status(502).json({ error: "Tutor returned an invalid response" });
+    return;
+  }
+
+  const tutorResponse = parsedTutorResponse.data;
   await Promise.all(tutorResponse.mistakes.map(async (pattern) => {
     await db.insert(recurringMistakesTable).values({
       learnerId: req.userId!, pattern, explanation: tutorResponse.explanation, count: 1, lastSeenAt: new Date(),
