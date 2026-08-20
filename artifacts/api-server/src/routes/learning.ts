@@ -21,6 +21,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { createLearningProgressRouter } from "./learningProgress";
 import { learningProgressStore } from "./learningProgressStore";
 import { normalizeTutorResponse } from "./tutorResponse";
+import { findDictionaryEntry, searchDictionary } from "./dictionarySearch";
 
 const router: IRouter = Router();
 type AuthenticatedRequest = Request & { userId?: string };
@@ -36,13 +37,6 @@ router.use(createLearningProgressRouter({
   store: learningProgressStore,
   getLearnerId: (req) => getAuth(req).userId,
 }));
-
-const normalizeDictionarySearch = (value: string) => value
-  .normalize("NFD")
-  .replace(/\p{Diacritic}/gu, "")
-  .replace(/[’]/g, "'")
-  .trim()
-  .toLowerCase();
 
 const dictionary = [
   {
@@ -77,6 +71,182 @@ const dictionary = [
     level: "A1 · Beginner",
     examples: ["Lundi, je commence mon cours de français.", "Le magasin est fermé le lundi."],
     related: ["mardi", "semaine", "week-end"],
+  },
+  {
+    word: "maison",
+    translation: "house, home",
+    definition: "The place where someone lives; it can also mean the building itself.",
+    partOfSpeech: "noun",
+    gender: "feminine",
+    pronunciation: "meh-zohn",
+    level: "A1 · Beginner",
+    examples: ["Je rentre à la maison.", "Notre maison est près du parc."],
+    related: ["appartement", "famille", "chez"],
+  },
+  {
+    word: "famille",
+    translation: "family",
+    definition: "A group of people related to one another, or the people close to you at home.",
+    partOfSpeech: "noun",
+    gender: "feminine",
+    pronunciation: "fah-mee",
+    level: "A1 · Beginner",
+    examples: ["Ma famille habite à Lyon.", "Je passe le dimanche avec ma famille."],
+    related: ["parents", "enfant", "frère"],
+  },
+  {
+    word: "eau",
+    translation: "water",
+    definition: "The clear liquid that people drink and that covers much of the Earth.",
+    partOfSpeech: "noun",
+    gender: "feminine",
+    pronunciation: "oh",
+    level: "A1 · Beginner",
+    examples: ["Je voudrais un verre d'eau.", "L'eau est fraîche."],
+    related: ["boire", "verre", "soif"],
+  },
+  {
+    word: "café",
+    translation: "coffee; café",
+    definition: "A hot drink made from roasted coffee beans, or a small place where drinks and food are served.",
+    partOfSpeech: "noun",
+    gender: "masculine",
+    pronunciation: "kah-fay",
+    level: "A1 · Beginner",
+    examples: ["Je prends un café le matin.", "On se retrouve dans un café."],
+    related: ["boire", "matin", "restaurant"],
+  },
+  {
+    word: "manger",
+    translation: "to eat",
+    definition: "To put food in your mouth and swallow it.",
+    partOfSpeech: "verb",
+    gender: null,
+    pronunciation: "mahn-zhay",
+    level: "A1 · Beginner",
+    examples: ["Nous allons manger ensemble.", "Qu'est-ce que tu veux manger ?"],
+    related: ["repas", "déjeuner", "faim"],
+  },
+  {
+    word: "boire",
+    translation: "to drink",
+    definition: "To take a liquid into your mouth and swallow it.",
+    partOfSpeech: "verb",
+    gender: null,
+    pronunciation: "bwahr",
+    level: "A1 · Beginner",
+    examples: ["Je bois beaucoup d'eau.", "Vous voulez boire quelque chose ?"],
+    related: ["eau", "café", "soif"],
+  },
+  {
+    word: "aujourd'hui",
+    translation: "today",
+    definition: "On this day; the day that is happening now.",
+    partOfSpeech: "adverb",
+    gender: null,
+    pronunciation: "oh-zhoor-dwee",
+    level: "A1 · Beginner",
+    examples: ["Aujourd'hui, il fait beau.", "Je travaille aujourd'hui."],
+    related: ["demain", "hier", "maintenant"],
+  },
+  {
+    word: "français",
+    translation: "French",
+    definition: "Relating to France or its people, or the language spoken in France and many other places.",
+    partOfSpeech: "adjective · noun",
+    gender: "masculine",
+    pronunciation: "frahn-say",
+    level: "A1 · Beginner",
+    examples: ["J'apprends le français.", "C'est un film français."],
+    related: ["France", "langue", "apprendre"],
+  },
+  {
+    word: "travailler",
+    translation: "to work",
+    definition: "To do a job or spend time doing a task or activity.",
+    partOfSpeech: "verb",
+    gender: null,
+    pronunciation: "trah-vah-yay",
+    level: "A1 · Beginner",
+    examples: ["Je travaille dans une école.", "Nous travaillons le lundi."],
+    related: ["emploi", "bureau", "étudier"],
+  },
+  {
+    word: "comprendre",
+    translation: "to understand",
+    definition: "To know the meaning of something or see how something works.",
+    partOfSpeech: "verb",
+    gender: null,
+    pronunciation: "kohm-prahn-druh",
+    level: "A1 · Beginner",
+    examples: ["Je comprends la question.", "Elle comprend mieux avec un exemple."],
+    related: ["apprendre", "expliquer", "question"],
+  },
+  {
+    word: "besoin",
+    translation: "need",
+    definition: "Something that is necessary or wanted; commonly used in the expression avoir besoin de.",
+    partOfSpeech: "noun",
+    gender: "masculine",
+    pronunciation: "buh-zwan",
+    level: "A2 · Elementary",
+    examples: ["J'ai besoin d'un peu de temps.", "De quoi as-tu besoin ?"],
+    related: ["vouloir", "aide", "devoir"],
+  },
+  {
+    word: "prendre",
+    translation: "to take",
+    definition: "To get hold of something, carry it, or choose and consume something such as a meal or drink.",
+    partOfSpeech: "verb",
+    gender: null,
+    pronunciation: "prahn-druh",
+    level: "A2 · Elementary",
+    examples: ["Je prends le train à huit heures.", "Tu prends un café ?"],
+    related: ["aller", "choisir", "voyage"],
+  },
+  {
+    word: "pouvoir",
+    translation: "can, to be able to",
+    definition: "To have the ability or permission to do something.",
+    partOfSpeech: "verb",
+    gender: null,
+    pronunciation: "poo-vwahr",
+    level: "A2 · Elementary",
+    examples: ["Je peux vous aider.", "Est-ce que tu peux venir demain ?"],
+    related: ["devoir", "vouloir", "aider"],
+  },
+  {
+    word: "toujours",
+    translation: "always; still",
+    definition: "At all times, or continuing up to the present moment depending on the context.",
+    partOfSpeech: "adverb",
+    gender: null,
+    pronunciation: "too-zhoor",
+    level: "A2 · Elementary",
+    examples: ["Elle arrive toujours à l'heure.", "Il est toujours au travail."],
+    related: ["souvent", "jamais", "encore"],
+  },
+  {
+    word: "souvent",
+    translation: "often",
+    definition: "Many times or frequently.",
+    partOfSpeech: "adverb",
+    gender: null,
+    pronunciation: "soo-vahn",
+    level: "A2 · Elementary",
+    examples: ["Je lis souvent le soir.", "Nous voyageons souvent en train."],
+    related: ["toujours", "parfois", "rarement"],
+  },
+  {
+    word: "cependant",
+    translation: "however, nevertheless",
+    definition: "A formal linking word used to introduce a contrast or an exception.",
+    partOfSpeech: "adverb",
+    gender: null,
+    pronunciation: "suh-pahn-dahn",
+    level: "B1 · Intermediate",
+    examples: ["Le trajet est long ; cependant, la vue est magnifique.", "Je comprends cependant ton point de vue."],
+    related: ["pourtant", "mais", "toutefois"],
   },
   {
     word: "voudrais",
@@ -237,19 +407,12 @@ const verbs = {
 
 router.get("/dictionary", (req, res) => {
   const { q } = SearchDictionaryQueryParams.parse(req.query);
-  const normalizedQuery = normalizeDictionarySearch(q);
-  const result = dictionary.filter((entry) => normalizeDictionarySearch([
-    entry.word,
-    entry.translation,
-    entry.definition,
-    ...entry.examples,
-    ...entry.related,
-  ].join(" ")).includes(normalizedQuery));
+  const result = searchDictionary(dictionary, q);
   res.json(SearchDictionaryResponse.parse(result));
 });
 
 router.get("/dictionary/:word", (req, res) => {
-  const entry = dictionary.find((item) => normalizeDictionarySearch(item.word) === normalizeDictionarySearch(req.params.word));
+  const entry = findDictionaryEntry(dictionary, req.params.word);
   if (!entry) return res.status(404).json({ error: "Word not found" });
   return res.json(GetDictionaryEntryResponse.parse(entry));
 });
