@@ -243,7 +243,11 @@ export const GetDashboardResponse = zod.object({
   "level": zod.string(),
   "progress": zod.number(),
   "weakSpot": zod.string(),
-  "recentWords": zod.array(zod.string())
+  "recentWords": zod.array(zod.string()),
+  "recentActivity": zod.array(zod.object({
+  "activity": zod.string(),
+  "completedAt": zod.coerce.date()
+}))
 })
 
 
@@ -290,7 +294,7 @@ export const SendTutorMessageResponse = zod.object({
   "explanation": zod.string(),
   "correction": zod.string().nullable(),
   "naturalPhrase": zod.string().nullable(),
-  "mistakes": zod.array(zod.string())
+  "mistakes": zod.array(zod.string()).describe('Always returned as an array. A single tutor-provided mistake is normalized to a one-item array.')
 })
 
 
