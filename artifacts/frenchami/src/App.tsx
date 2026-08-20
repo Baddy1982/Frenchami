@@ -193,8 +193,22 @@ function EmptyState({ title, text }: { title: string; text: string }) {
   return <div className="empty-state" data-testid="status-empty"><Sparkles className="mx-auto mb-3 text-[#f47c52]" size={24} /><div className="font-display text-lg font-bold">{title}</div><p className="mx-auto mt-1 max-w-sm text-xs leading-6 text-muted-foreground">{text}</p></div>;
 }
 
-function AuthPrompt({ title = 'Make this yours', text = 'Create a free account to save your progress and pick up where you left off.' }: { title?: string; text?: string }) {
-  return <div className="rounded-2xl border border-[#b8d8c7] bg-[#eff8f2] p-5 text-center" data-testid="auth-prompt"><div className="mx-auto mb-3 grid h-10 w-10 place-items-center rounded-xl bg-[#247a61] text-white"><Bookmark size={18} /></div><div className="font-display text-xl font-bold">{title}</div><p className="mx-auto mt-1 max-w-sm text-xs leading-6 text-muted-foreground">{text}</p><div className="mt-4 flex justify-center gap-2"><Link href="/sign-up" className="button-primary" data-testid="link-create-account">Create free account</Link><Link href="/sign-in" className="button-secondary" data-testid="link-sign-in">Sign in</Link></div></div>;
+function activityLabel(activity: string) {
+  if (activity.startsWith('tutor-')) {
+    const level = activity.slice('tutor-'.length);
+    return `AI tutor · ${level.charAt(0).toUpperCase()}${level.slice(1)}`;
+  }
+  return activity.replace(/[-_]/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function activityDate(value: Date | string) {
+  const date = value instanceof Date ? value : new Date(value);
+  return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
+}
+
+function AuthPrompt({ title = 'Make this yours', text = 'Create a free account to save your progress and pick up where you left off.', redirectPath }: { title?: string; text?: string; redirectPath?: string }) {
+  const redirectQuery = redirectPath ? `?redirect_url=${encodeURIComponent(redirectPath)}` : '';
+  return <div className="rounded-2xl border border-[#b8d8c7] bg-[#eff8f2] p-5 text-center" data-testid="auth-prompt"><div className="mx-auto mb-3 grid h-10 w-10 place-items-center rounded-xl bg-[#247a61] text-white"><Bookmark size={18} /></div><div className="font-display text-xl font-bold">{title}</div><p className="mx-auto mt-1 max-w-sm text-xs leading-6 text-muted-foreground">{text}</p><div className="mt-4 flex justify-center gap-2"><Link href={`/sign-up${redirectQuery}`} className="button-primary" data-testid="link-create-account">Create free account</Link><Link href={`/sign-in${redirectQuery}`} className="button-secondary" data-testid="link-sign-in">Sign in</Link></div></div>;
 }
 
 function SearchBar({ value, onChange, onSubmit, placeholder = 'Search in French…', testId = 'input-search' }: { value: string; onChange: (value: string) => void; onSubmit: () => void; placeholder?: string; testId?: string }) {
@@ -397,7 +411,7 @@ function Tutor() {
     <div className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-[1fr_280px]"><section className="card overflow-hidden"><div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-[#e8f5ed] p-5"><div><div className="section-title">A little café chat</div><div className="mt-1 text-xs text-muted-foreground">No grades here. Just useful momentum.</div></div><div className="flex rounded-xl bg-white/70 p-1">{(['beginner', 'intermediate', 'advanced'] as const).map((item) => <button key={item} onClick={() => setLevel(item)} className={`rounded-lg px-3 py-2 text-[10px] font-bold capitalize ${level === item ? 'bg-[#247a61] text-white' : 'text-muted-foreground'}`} data-testid={`button-tutor-level-${item}`}>{item}</button>)}</div></div><div className="max-h-[520px] space-y-5 overflow-y-auto p-5 sm:p-7">{messages.map((message, index) => <div key={`${message.role}-${index}`} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}><div className={`max-w-[88%] ${message.role === 'user' ? 'items-end' : 'items-start'}`}><div className={`rounded-2xl px-4 py-3 text-sm leading-6 ${message.role === 'user' ? 'rounded-br-sm bg-[#247a61] text-white' : 'rounded-bl-sm bg-[#f5f0e4]'}`}>{message.content}</div>{message.role === 'assistant' && <div className="mt-2 space-y-1 pl-2 text-[11px] leading-5 text-muted-foreground">{message.explanation && <p><span className="font-semibold text-[#247a61]">English:</span> {message.explanation}</p>}{message.correction && <p><span className="font-semibold text-[#c56a46]">Correction:</span> {message.correction}</p>}{message.naturalPhrase && <p><span className="font-semibold text-[#1f5ebd]">More natural:</span> {message.naturalPhrase}</p>}</div>}</div></div>)}{send.isPending && <div className="text-xs text-muted-foreground">Your tutor is thinking…</div>}{send.isError && <p className="rounded-lg bg-[#fae4dc] p-3 text-xs text-[#93452e]">I couldn’t reach your tutor. Please try again.</p>}</div><div className="border-t border-border p-4"><div className="flex gap-2"><input value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') submit(); }} placeholder="Écris quelque chose en français…" className="min-h-[44px] flex-1 rounded-xl border border-border bg-[#fffdf7] px-4 text-sm outline-none focus:border-[#247a61]" data-testid="input-tutor-message" /><button className="button-primary" onClick={submit} disabled={send.isPending || !draft.trim()} data-testid="button-send-tutor"><Send size={15} /> Send</button></div></div></section><aside className="card h-fit p-5"><div className="mb-4 flex items-center gap-2"><Sparkles size={16} className="text-[#f47c52]" /><div className="section-title text-base">How it works</div></div><ul className="space-y-3 text-xs leading-5 text-muted-foreground"><li><strong className="text-foreground">Stay in French.</strong> Your tutor answers in French and explains in English.</li><li><strong className="text-foreground">Make mistakes.</strong> Corrections are kind, specific, and saved to your progress.</li><li><strong className="text-foreground">Choose your stretch.</strong> Switch levels whenever you want.</li></ul></aside></div>
   </div>;
 }
-function Dashboard() {
+function ProgressDashboard() {
   const { user } = useUser();
   const dashboard = useGetDashboard({ query: { enabled: Boolean(user), queryKey: getGetDashboardQueryKey(), staleTime: 60000 } });
   const data = dashboard.data as Dashboard | undefined;
@@ -406,6 +420,25 @@ function Dashboard() {
   return <div className="content"><div className="mb-8 flex flex-wrap items-end justify-between gap-4"><div><div className="eyebrow">A quiet look back</div><h1 className="page-heading">Your progress<span className="text-[#f47c52]">.</span></h1><p className="page-subheading">You do not need a perfect week. You need a thread you can pick up again.</p></div><Link href="/practice" className="button-primary" data-testid="link-dashboard-practice"><Play size={14} fill="currentColor" /> Continue practice</Link></div>
     {dashboard.isLoading ? <LoadingBlock rows={6} /> : dashboard.isError ? <ErrorMessage onRetry={() => dashboard.refetch()} /> : data ? <><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><MiniStat icon={BookOpen} label="Words learned" value={data.wordsLearned} detail="A growing working set" /><MiniStat icon={Flame} label="Current streak" value={`${data.streak} days`} detail="Your most useful habit" tone="orange" /><MiniStat icon={Sparkles} label="Total XP" value={data.xp} detail="Earned through practice" /><MiniStat icon={TrendingUp} label="Level" value={data.level} detail="Keep exploring" tone="green" /></div><div className="mt-6 grid gap-6 lg:grid-cols-[1.15fr_.85fr]"><section className="card p-6 sm:p-7"><div className="mb-8 flex items-center justify-between"><div><div className="section-title">Level journey</div><p className="mt-1 text-xs text-muted-foreground">Progress is a collection of ordinary days.</p></div><span className="chip chip-blue">{data.progress}%</span></div><div className="mb-3 flex items-end justify-between"><div className="font-display text-3xl font-bold">{data.level}</div><span className="font-mono-ui text-[10px] text-muted-foreground">next chapter</span></div><div className="progress-track h-3"><div className="progress-bar" style={{ width: `${data.progress}%` }} /></div><div className="mt-4 flex justify-between text-[10px] text-muted-foreground"><span>Keep showing up</span><span>{100 - data.progress} points to go</span></div><div className="mt-9 grid grid-cols-7 gap-2">{['M','T','W','T','F','S','S'].map((day, index) => <div key={`${day}-${index}`} className="text-center"><div className={`mx-auto mb-2 h-8 w-8 rounded-lg ${index < 4 ? 'bg-[#2d897c]' : index === 4 ? 'bg-[#f47c52]' : 'bg-[#e9e3d5]'}`} /> <span className="font-mono-ui text-[9px] text-muted-foreground">{day}</span></div>)}</div></section><section className="card p-6 sm:p-7"><div className="mb-6 flex items-center justify-between"><div><div className="section-title">Your next best move</div><p className="mt-1 text-xs text-muted-foreground">A recommendation, not a demand.</p></div><Lightbulb size={20} className="text-[#f47c52]" /></div><div className="rounded-xl bg-[#f5f0e4] p-4"><div className="font-mono-ui text-[10px] uppercase tracking-[.14em] text-[#b65c36]">Weak spot</div><div className="mt-2 font-display text-xl font-bold">{data.weakSpot}</div><p className="mt-2 text-xs leading-5 text-muted-foreground">Spend five minutes with a few examples, then use one in your own sentence.</p><Link href="/conjugation" className="button-secondary mt-4" data-testid="link-dashboard-recommendation">Review it <ArrowRight size={13} /></Link></div><div className="mt-7"><div className="mb-3 flex items-center justify-between"><span className="text-xs font-semibold">Recently touched</span><Link href="/vocabulary" className="text-[11px] font-semibold text-[#1f5ebd]" data-testid="link-dashboard-vocabulary">Open vocabulary</Link></div>{data.recentWords?.length ? <div className="flex flex-wrap gap-2">{data.recentWords.map((word) => <span className="chip" key={word}>{word}</span>)}</div> : <p className="text-xs text-muted-foreground">Your recent words will collect here.</p>}</div></section></div><section className="card mt-6 p-6 sm:p-7"><div className="mb-5 flex items-center justify-between"><div><div className="section-title">Patterns to revisit</div><p className="mt-1 text-xs text-muted-foreground">Your tutor keeps track of patterns that come up more than once.</p></div><Link href="/tutor" className="button-secondary">Practice with tutor <MessageCircle size={13} /></Link></div>{mistakes.isLoading ? <LoadingBlock rows={2} /> : mistakes.data?.length ? <div className="grid gap-3 md:grid-cols-2">{mistakes.data.slice(0, 6).map((mistake) => <div className="rounded-xl bg-[#f5f0e4] p-4" key={mistake.pattern}><div className="flex items-center justify-between"><span className="font-display font-bold">{mistake.pattern}</span><span className="chip chip-orange">{mistake.count}×</span></div><p className="mt-2 text-xs leading-5 text-muted-foreground">{mistake.explanation}</p></div>)}</div> : <p className="text-xs text-muted-foreground">Start a conversation and your recurring patterns will appear here.</p>}</section></> : <EmptyState title="Your story starts here" text="Complete your first practice and your progress will begin to take shape." />}
   </div>;
+}
+
+function RecentActivity() {
+  const { user } = useUser();
+  const dashboard = useGetDashboard({ query: { enabled: Boolean(user), queryKey: getGetDashboardQueryKey(), staleTime: 60000 } });
+  const data = dashboard.data as Dashboard | undefined;
+  if (!user) return null;
+
+  return <section className="card mb-6 p-6 sm:p-7" data-testid="card-recent-activity">
+    <div className="mb-5 flex items-center justify-between">
+      <div><div className="section-title">Recent practice</div><p className="mt-1 text-xs text-muted-foreground">A short trail of the work you have been doing.</p></div>
+      <Clock3 size={20} className="text-[#247a61]" />
+    </div>
+    {dashboard.isLoading ? <LoadingBlock rows={3} /> : dashboard.isError ? <ErrorMessage onRetry={() => dashboard.refetch()} /> : data?.recentActivity?.length ? <div className="space-y-3">{data.recentActivity.map((session, index) => <div className="flex items-center justify-between gap-4 rounded-xl bg-[#f5f0e4] px-4 py-3" key={`${session.completedAt}-${session.activity}-${index}`}><div className="flex min-w-0 items-center gap-3"><div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#dceee3] text-[#247a61]"><MessageCircle size={15} /></div><span className="truncate text-sm font-semibold">{activityLabel(session.activity)}</span></div><time className="shrink-0 font-mono-ui text-[10px] text-muted-foreground" dateTime={new Date(session.completedAt).toISOString()}>{activityDate(session.completedAt)}</time></div>)}</div> : <p className="rounded-xl bg-[#f5f0e4] p-4 text-xs leading-5 text-muted-foreground" data-testid="status-activity-empty">Your recent practice will appear here after your first session.</p>}
+  </section>;
+}
+
+function Dashboard() {
+  return <><div className="content pb-0"><RecentActivity /></div><ProgressDashboard /></>;
 }
 
 function Pricing() {
@@ -433,7 +466,7 @@ function Pricing() {
 
   const startCheckout = (planId: "basic" | "platinum") => {
     if (!user) {
-      setLocation("/sign-up");
+      setLocation(`/sign-up?redirect_url=${encodeURIComponent(`${basePath}/pricing`)}`);
       return;
     }
     checkout.mutate({ data: { planId } });
@@ -469,7 +502,7 @@ function Pricing() {
       })}
     </div>
     <p className="mx-auto mt-7 max-w-2xl text-center text-xs leading-5 text-muted-foreground">Payments are handled securely by Stripe. Premium access is unlocked only after your subscription is confirmed.</p>
-    {!user && <div className="mx-auto mt-7 max-w-xl"><AuthPrompt title="Start with a free learner account" text="Create an account before checkout so Frenchami can safely connect your paid subscription to your learning space." /></div>}
+    {!user && <div className="mx-auto mt-7 max-w-xl"><AuthPrompt title="Start with a free learner account" text="Create an account before checkout so Frenchami can safely connect your paid subscription to your learning space." redirectPath={`${basePath}/pricing`} /></div>}
     {user && access.data?.active && access.data.premiumUrl && checkoutStatus !== "success" && <div className="mx-auto mt-8 max-w-2xl rounded-2xl bg-[#eff8f2] p-5 text-center"><div className="font-display text-xl font-bold text-[#247a61]">Your Premium subscription is active.</div><p className="mt-1 text-xs text-muted-foreground">You can open the premium learning space whenever you are ready.</p><a href={access.data.premiumUrl} className="button-primary mt-4" data-testid="link-open-active-premium">Open premium app <ArrowUpRight size={14} /></a></div>}
     {checkout.isError && <div className="mx-auto mt-6 max-w-2xl"><ErrorMessage onRetry={() => checkout.reset()} /></div>}
   </div>;
@@ -490,6 +523,16 @@ function HealthProbe() {
 
 function ClerkApp() {
   const [, setLocation] = useLocation();
+  const authRedirect = (() => {
+    const candidate = new URLSearchParams(window.location.search).get("redirect_url");
+    if (!candidate) return basePath || "/";
+    try {
+      const url = new URL(candidate, window.location.origin);
+      return url.origin === window.location.origin ? `${url.pathname}${url.search}${url.hash}` : basePath || "/";
+    } catch {
+      return basePath || "/";
+    }
+  })();
 
   return (
     <ClerkProvider
@@ -510,7 +553,7 @@ function ClerkApp() {
                   routing="path"
                   path={`${basePath}/sign-in`}
                   signUpUrl={`${basePath}/sign-up`}
-                  fallbackRedirectUrl={basePath || '/'}
+                  fallbackRedirectUrl={authRedirect}
                 />
               </div>
             </Route>
@@ -520,7 +563,7 @@ function ClerkApp() {
                   routing="path"
                   path={`${basePath}/sign-up`}
                   signInUrl={`${basePath}/sign-in`}
-                  fallbackRedirectUrl={basePath || '/'}
+                  fallbackRedirectUrl={authRedirect}
                 />
               </div>
             </Route>
