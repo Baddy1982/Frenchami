@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
 import test from "node:test";
 import express, { type Express } from "express";
+import { SendTutorMessageResponse } from "@workspace/api-zod";
 import { createLearningProgressRouter, type LearningProgressStore, type LearningState } from "./learningProgress";
+import { normalizeTutorResponse } from "./tutorResponse";
 
 class InMemoryLearningProgressStore implements LearningProgressStore {
   private readonly states = new Map<string, LearningState>();
@@ -136,4 +138,34 @@ test("learning progress API records attempts and persists only earned XP", async
     assert.equal(restored.headers.get("etag"), null);
     assert.deepEqual(await restored.json(), state, "the persisted state is returned on a later reload");
   });
+});
+
+test("tutor feedback normalizes a single mistake before the response schema and session persistence path", () => {
+  const normalized = normalizeTutorResponse({
+    reply: "Très bien ! Continue comme ça.",
+    explanation: "Use “je suis allé” for the past tense.",
+    correction: "Je suis allé au marché.",
+    naturalPhrase: null,
+    mistakes: "Use “je suis allé” instead of “j'ai allé”.",
+  });
+
+  assert.deepEqual(SendTutorMessageResponse.parse(normalized), {
+    reply: "Très bien ! Continue comme ça.",
+    explanation: "Use “je suis allé” for the past tense.",
+    correction: "Je suis allé au marché.",
+    naturalPhrase: null,
+    mistakes: ["Use “je suis allé” instead of “j'ai allé”."],
+  });
+});
+
+test("tutor feedback converts an empty single mistake into no saved mistakes", () => {
+  const normalized = normalizeTutorResponse({
+    reply: "Bravo !",
+    explanation: "No corrections needed.",
+    correction: null,
+    naturalPhrase: null,
+    mistakes: "   ",
+  });
+
+  assert.deepEqual((normalized as { mistakes: string[] }).mistakes, []);
 });
