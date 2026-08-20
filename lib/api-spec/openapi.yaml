@@ -368,7 +368,7 @@ components:
         xp: { type: number }
     Dashboard:
       type: object
-      required: [wordsLearned, streak, xp, level, progress, weakSpot, recentWords]
+      required: [wordsLearned, streak, xp, level, progress, weakSpot, recentWords, recentActivity]
       properties:
         wordsLearned: { type: number }
         streak: { type: number }
@@ -379,6 +379,15 @@ components:
         recentWords:
           type: array
           items: { type: string }
+        recentActivity:
+          type: array
+          items: { $ref: "#/components/schemas/LearningActivity" }
+    LearningActivity:
+      type: object
+      required: [activity, completedAt]
+      properties:
+        activity: { type: string }
+        completedAt: { type: string, format: date-time }
     LearningState:
       type: object
       required: [savedWords, learnedWords, quizAttempts, xp]
@@ -458,6 +467,7 @@ components:
         naturalPhrase: { type: ["string", "null"] }
         mistakes:
           type: array
+          description: Always returned as an array. A single tutor-provided mistake is normalized to a one-item array.
           items: { type: string }
     RecurringMistake:
       type: object
