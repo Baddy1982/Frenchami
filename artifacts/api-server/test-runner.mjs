@@ -10,6 +10,7 @@ const outdir = path.join(root, ".test-dist");
 await rm(outdir, { recursive: true, force: true });
 await build({
   entryPoints: [
+    path.join(root, "src/routes/dictionarySearch.test.ts"),
     path.join(root, "src/routes/learningProgress.test.ts"),
     path.join(root, "src/premiumAccess.test.ts"),
   ],
@@ -25,6 +26,7 @@ const testProcess = spawn(
   process.execPath,
   [
     "--test",
+    path.join(outdir, "routes/dictionarySearch.test.js"),
     path.join(outdir, "routes/learningProgress.test.js"),
     path.join(outdir, "premiumAccess.test.js"),
   ],
