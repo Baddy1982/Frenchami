@@ -13,5 +13,6 @@ export interface TutorMessageResponse {
   correction: string | null;
   /** @nullable */
   naturalPhrase: string | null;
+  /** Always returned as an array. A single tutor-provided mistake is normalized to a one-item array. */
   mistakes: string[];
 }
