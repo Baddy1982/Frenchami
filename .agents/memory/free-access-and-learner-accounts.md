@@ -9,8 +9,8 @@ Keep the core French learning tools public. Ask users to sign up only when they 
 
 **How to apply:** Preserve public routes and clear, contextual account prompts. Future premium products should share the learner identity rather than introduce a second login.
 
-The current premium entry point is an external Frenchami access-request screen; link to that existing flow instead of duplicating checkout inside the free app.
+The current premium entry point is an external Frenchami Next.js access-request screen. Frenchami verifies an active Stripe subscription before handing learners to that server-controlled URL.
 
-**Why:** The premium product already owns its subscription/access process, while Frenchami's responsibility is to make the handoff discoverable without turning the landing page into registration or billing.
+**Why:** The public premium screen currently exposes Auth0 markers, while Frenchami uses the Replit-managed Clerk tenant. An active subscription can safely unlock the handoff, but the free app cannot create a shared session in a different auth system.
 
-**How to apply:** Keep the premium CTA as an external handoff until the premium app exposes a stable shared-auth return flow and entitlement contract.
+**How to apply:** Do not pass learner identity or session data through a redirect. Keep the destination server-configured and Stripe-gated. To offer one-login access, migrate or configure the external premium app to use the same Clerk Production tenant first.
