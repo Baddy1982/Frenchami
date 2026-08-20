@@ -266,6 +266,47 @@ export const TranslateTextResponse = zod.object({
 
 
 /**
+ * @summary Send a message to the AI French conversation tutor
+ */
+export const sendTutorMessageBodyMessageMax = 2000;
+
+export const sendTutorMessageBodyHistoryItemContentMax = 2000;
+
+export const sendTutorMessageBodyHistoryMax = 20;
+
+
+
+export const SendTutorMessageBody = zod.object({
+  "level": zod.enum(['beginner', 'intermediate', 'advanced']),
+  "message": zod.string().min(1).max(sendTutorMessageBodyMessageMax),
+  "history": zod.array(zod.object({
+  "role": zod.enum(['user', 'assistant']),
+  "content": zod.string().min(1).max(sendTutorMessageBodyHistoryItemContentMax)
+})).max(sendTutorMessageBodyHistoryMax)
+})
+
+export const SendTutorMessageResponse = zod.object({
+  "reply": zod.string(),
+  "explanation": zod.string(),
+  "correction": zod.string().nullable(),
+  "naturalPhrase": zod.string().nullable(),
+  "mistakes": zod.array(zod.string())
+})
+
+
+/**
+ * @summary Get recurring grammar mistakes
+ */
+export const GetTutorMistakesResponseItem = zod.object({
+  "pattern": zod.string(),
+  "explanation": zod.string(),
+  "count": zod.number(),
+  "lastSeenAt": zod.coerce.date()
+})
+export const GetTutorMistakesResponse = zod.array(GetTutorMistakesResponseItem)
+
+
+/**
  * @summary List Frenchami premium subscription plans
  */
 export const getBillingPlansResponseAmountMin = 0;

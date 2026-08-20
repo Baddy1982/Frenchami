@@ -215,6 +215,35 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TranslationResult"
+  /tutor/message:
+    post:
+      operationId: sendTutorMessage
+      tags: [learning]
+      summary: Send a message to the AI French conversation tutor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TutorMessageInput" }
+      responses:
+        "200":
+          description: Tutor reply with corrections and explanations
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TutorMessageResponse" }
+  /tutor/mistakes:
+    get:
+      operationId: getTutorMistakes
+      tags: [learning]
+      summary: Get recurring grammar mistakes
+      responses:
+        "200":
+          description: Recurring mistakes
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/RecurringMistake" }
   /billing/plans:
     get:
       operationId: getBillingPlans
@@ -403,6 +432,41 @@ components:
       properties:
         translation: { type: string }
         note: { type: string }
+    TutorMessageInput:
+      type: object
+      required: [level, message, history]
+      properties:
+        level: { type: string, enum: [beginner, intermediate, advanced] }
+        message: { type: string, minLength: 1, maxLength: 2000 }
+        history:
+          type: array
+          maxItems: 20
+          items: { $ref: "#/components/schemas/TutorHistoryMessage" }
+    TutorHistoryMessage:
+      type: object
+      required: [role, content]
+      properties:
+        role: { type: string, enum: [user, assistant] }
+        content: { type: string, minLength: 1, maxLength: 2000 }
+    TutorMessageResponse:
+      type: object
+      required: [reply, explanation, correction, naturalPhrase, mistakes]
+      properties:
+        reply: { type: string }
+        explanation: { type: string }
+        correction: { type: ["string", "null"] }
+        naturalPhrase: { type: ["string", "null"] }
+        mistakes:
+          type: array
+          items: { type: string }
+    RecurringMistake:
+      type: object
+      required: [pattern, explanation, count, lastSeenAt]
+      properties:
+        pattern: { type: string }
+        explanation: { type: string }
+        count: { type: number }
+        lastSeenAt: { type: string, format: date-time }
     BillingPlan:
       type: object
       required: [id, name, description, amount, currency, interval, priceId]

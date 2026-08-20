@@ -11,10 +11,15 @@ import {
   SearchDictionaryResponse,
   TranslateTextBody,
   TranslateTextResponse,
+  SendTutorMessageBody,
+  SendTutorMessageResponse,
+  GetTutorMistakesResponse,
 } from "@workspace/api-zod";
 import { openai } from "@workspace/integrations-openai-ai-server";
-import { db, learnedWordsTable, learnerStatsTable, learningSessionsTable, quizAttemptsTable, savedWordsTable } from "@workspace/db";
+import { db, learnedWordsTable, learnerStatsTable, learningSessionsTable, quizAttemptsTable, recurringMistakesTable } from "@workspace/db";
 import { and, desc, eq, sql } from "drizzle-orm";
+import { createLearningProgressRouter } from "./learningProgress";
+import { learningProgressStore } from "./learningProgressStore";
 
 const router: IRouter = Router();
 type AuthenticatedRequest = Request & { userId?: string };
@@ -25,6 +30,11 @@ const requireAuth = (req: AuthenticatedRequest, res: Response, next: NextFunctio
   next();
   return undefined;
 };
+
+router.use(createLearningProgressRouter({
+  store: learningProgressStore,
+  getLearnerId: (req) => getAuth(req).userId,
+}));
 
 const normalizeDictionarySearch = (value: string) => value
   .normalize("NFD")
@@ -291,7 +301,7 @@ router.post("/translate", async (req, res) => {
       messages: [
         {
           role: "system",
-          content: `You are a precise English/French translator for Frenchami learners. ${directionInstruction} Translate the entire input naturally and preserve its intended register. Never return the original input unchanged unless it is a genuinely untranslatable proper name or technical term. Return ONLY valid JSON with exactly two string fields: "translation" and "note". The note must be one short English sentence explaining an idiom, politeness, grammar difference, or notable word choice when helpful; otherwise say "Natural everyday phrasing."`,
+          content: `You are a precise English/French translator for Frenchami learners. ${directionInstruction} Return ONLY valid JSON with exactly two string fields: "translation" and "note".`,
         },
         { role: "user", content: input.text },
       ],
@@ -305,75 +315,45 @@ router.post("/translate", async (req, res) => {
   }
 });
 
-router.get("/learning/state", requireAuth, async (req: AuthenticatedRequest, res) => {
-  return res.json(await getLearningState(req.userId!));
-});
-
-router.put("/learning/saved-words/:word", requireAuth, async (req: AuthenticatedRequest, res) => {
-  const word = String(req.params.word);
-  await db.insert(savedWordsTable).values({ learnerId: req.userId!, word })
-    .onConflictDoNothing({ target: [savedWordsTable.learnerId, savedWordsTable.word] });
-  return res.json(await getLearningState(req.userId!));
-});
-
-router.delete("/learning/saved-words/:word", requireAuth, async (req: AuthenticatedRequest, res) => {
-  const word = String(req.params.word);
-  await db.delete(savedWordsTable).where(and(eq(savedWordsTable.learnerId, req.userId!), eq(savedWordsTable.word, word)));
-  return res.json(await getLearningState(req.userId!));
-});
-
-router.patch("/learning/words/:word", requireAuth, async (req: AuthenticatedRequest, res) => {
-  const word = String(req.params.word);
-  const learned = Boolean(req.body?.learned);
-  await db.insert(learnedWordsTable).values({ learnerId: req.userId!, word, learned })
-    .onConflictDoUpdate({
-      target: [learnedWordsTable.learnerId, learnedWordsTable.word],
-      set: { learned, updatedAt: new Date() },
-    });
-  return res.json(await getLearningState(req.userId!));
-});
-
-router.post("/learning/quiz-attempts", requireAuth, async (req: AuthenticatedRequest, res) => {
-  const { quizId, answer, correct, xp } = req.body;
-  const earnedXp = correct ? xp : 0;
-  await db.transaction(async (tx) => {
-    await tx.insert(quizAttemptsTable).values({
-      learnerId: req.userId!, quizId, answer, correct, xp: earnedXp,
-      attemptedOn: new Date().toISOString().slice(0, 10),
-    });
-    await tx.insert(learnerStatsTable).values({ learnerId: req.userId!, xp: earnedXp })
-      .onConflictDoUpdate({
-        target: learnerStatsTable.learnerId,
-        set: { xp: sql`${learnerStatsTable.xp} + ${earnedXp}`, updatedAt: new Date() },
-      });
-    await tx.insert(learningSessionsTable).values({
-      learnerId: req.userId!,
-      activity: "daily-quiz",
-      completedAt: new Date(),
-    });
+router.post("/tutor/message", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+  const input = SendTutorMessageBody.parse(req.body);
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    response_format: { type: "json_object" },
+    messages: [
+      { role: "system", content: `You are a warm French conversation tutor. The learner is ${input.level} level. Reply mostly in French, then explain in clear English. Return JSON with exactly these keys: reply, explanation, correction, naturalPhrase, mistakes. Correct grammar kindly and keep the conversation moving. Do not mention being an AI.` },
+      ...input.history.map((message) => ({ role: message.role as "user" | "assistant", content: message.content })),
+      { role: "user", content: input.message },
+    ],
   });
-  return res.json(await getLearningState(req.userId!));
+  const raw = completion.choices[0]?.message.content ?? "{}";
+  let parsed: unknown;
+  try { parsed = JSON.parse(raw); } catch {
+    res.status(502).json({ error: "Tutor returned an invalid response" });
+    return;
+  }
+  const tutorResponse = SendTutorMessageResponse.parse(parsed);
+  await Promise.all(tutorResponse.mistakes.map(async (pattern) => {
+    await db.insert(recurringMistakesTable).values({
+      learnerId: req.userId!, pattern, explanation: tutorResponse.explanation, count: 1, lastSeenAt: new Date(),
+    }).onConflictDoUpdate({
+      target: [recurringMistakesTable.learnerId, recurringMistakesTable.pattern],
+      set: { count: sql`${recurringMistakesTable.count} + 1`, explanation: tutorResponse.explanation, lastSeenAt: new Date() },
+    });
+  }));
+  await db.insert(learningSessionsTable).values({ learnerId: req.userId!, activity: `tutor-${input.level}`, completedAt: new Date() });
+  res.json(tutorResponse);
+});
+
+router.get("/tutor/mistakes", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+  const mistakes = await db.select({
+    pattern: recurringMistakesTable.pattern,
+    explanation: recurringMistakesTable.explanation,
+    count: recurringMistakesTable.count,
+    lastSeenAt: recurringMistakesTable.lastSeenAt,
+  }).from(recurringMistakesTable).where(eq(recurringMistakesTable.learnerId, req.userId!))
+    .orderBy(desc(recurringMistakesTable.count), desc(recurringMistakesTable.lastSeenAt));
+  res.json(GetTutorMistakesResponse.parse(mistakes));
 });
 
 export default router;
-
-async function getLearningState(learnerId: string) {
-  const [saved, learned, attempts, stats] = await Promise.all([
-    db.select({ word: savedWordsTable.word }).from(savedWordsTable).where(eq(savedWordsTable.learnerId, learnerId)),
-    db.select({ word: learnedWordsTable.word }).from(learnedWordsTable)
-      .where(and(eq(learnedWordsTable.learnerId, learnerId), eq(learnedWordsTable.learned, true))),
-    db.select({
-      quizId: quizAttemptsTable.quizId, answer: quizAttemptsTable.answer, correct: quizAttemptsTable.correct,
-      xp: quizAttemptsTable.xp, attemptedOn: quizAttemptsTable.attemptedOn,
-    }).from(quizAttemptsTable).where(eq(quizAttemptsTable.learnerId, learnerId))
-      .orderBy(desc(quizAttemptsTable.createdAt)),
-    db.select({ xp: learnerStatsTable.xp }).from(learnerStatsTable)
-      .where(eq(learnerStatsTable.learnerId, learnerId)).limit(1),
-  ]);
-  return {
-    savedWords: saved.map(({ word }) => word),
-    learnedWords: learned.map(({ word }) => word),
-    quizAttempts: attempts,
-    xp: stats[0]?.xp ?? 0,
-  };
-}

@@ -32,9 +32,12 @@ import type {
   LearningState,
   Quiz,
   QuizAttemptInput,
+  RecurringMistake,
   SearchDictionaryParams,
   TranslationInput,
   TranslationResult,
+  TutorMessageInput,
+  TutorMessageResponse,
   Verb,
   VocabularyCategory,
   VocabularyWord
@@ -1122,6 +1125,154 @@ export const useTranslateText = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getTranslateTextMutationOptions(options));
     }
+
+export const getSendTutorMessageUrl = () => {
+
+
+
+
+  return `/api/tutor/message`
+}
+
+/**
+ * @summary Send a message to the AI French conversation tutor
+ */
+export const sendTutorMessage = async (tutorMessageInput: TutorMessageInput, options?: Parameters<typeof customFetch>[1]): Promise<TutorMessageResponse> => {
+
+  return customFetch<TutorMessageResponse>(getSendTutorMessageUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(tutorMessageInput)
+  }
+);}
+
+
+
+
+
+export const getSendTutorMessageMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendTutorMessage>>, TError,{data: BodyType<TutorMessageInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendTutorMessage>>, TError,{data: BodyType<TutorMessageInput>}, TContext> => {
+
+const mutationKey = ['sendTutorMessage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendTutorMessage>>, {data: BodyType<TutorMessageInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  sendTutorMessage(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendTutorMessageMutationResult = NonNullable<Awaited<ReturnType<typeof sendTutorMessage>>>
+    export type SendTutorMessageMutationBody = BodyType<TutorMessageInput>
+    export type SendTutorMessageMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Send a message to the AI French conversation tutor
+ */
+export const useSendTutorMessage = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendTutorMessage>>, TError,{data: BodyType<TutorMessageInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sendTutorMessage>>,
+        TError,
+        {data: BodyType<TutorMessageInput>},
+        TContext
+      > => {
+      return useMutation(getSendTutorMessageMutationOptions(options));
+    }
+
+export const getGetTutorMistakesUrl = () => {
+
+
+
+
+  return `/api/tutor/mistakes`
+}
+
+/**
+ * @summary Get recurring grammar mistakes
+ */
+export const getTutorMistakes = async ( options?: Parameters<typeof customFetch>[1]): Promise<RecurringMistake[]> => {
+
+  return customFetch<RecurringMistake[]>(getGetTutorMistakesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetTutorMistakesQueryKey = () => {
+    return [
+    `/api/tutor/mistakes`
+    ] as const;
+    }
+
+
+export const getGetTutorMistakesQueryOptions = <TData = Awaited<ReturnType<typeof getTutorMistakes>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTutorMistakes>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTutorMistakesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTutorMistakes>>> = ({ signal }) => getTutorMistakes({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTutorMistakes>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetTutorMistakesQueryResult = NonNullable<Awaited<ReturnType<typeof getTutorMistakes>>>
+export type GetTutorMistakesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get recurring grammar mistakes
+ */
+
+export function useGetTutorMistakes<TData = Awaited<ReturnType<typeof getTutorMistakes>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTutorMistakes>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetTutorMistakesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetBillingPlansUrl = () => {
 

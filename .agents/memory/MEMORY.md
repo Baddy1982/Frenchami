@@ -1,4 +1,7 @@
 - [Learner progress persistence](learner-progress-persistence.md) — progress mutations use a stable demo learner until authentication supplies identity.
+- [Progress response caching](progress-response-caching.md) — personalized learning state must never use HTTP cache validators.
+- [OpenAPI integer compatibility](openapi-zod-integer.md) — generated Zod currently emits unsupported z.int() for integer schemas.
 - [Clerk in-app routing](clerk-in-app-routing.md) — production auth must use same-host `/sign-in` routes and the Clerk proxy, not hosted accounts redirects.
 - [Free access and learner accounts](free-access-and-learner-accounts.md) — core learning tools stay public; accounts begin when learners save progress or upgrade.
 - [Stripe connection runtime](stripe-connection-runtime.md) — this Stripe connector exposes `settings.secret`; bundled Stripe sync migrations must ship beside server output.
+- [GitHub project mirror](github-project-mirror.md) — keep the complete Frenchami source synchronized to the user's GitHub repository as changes are made.

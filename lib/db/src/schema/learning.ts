@@ -51,7 +51,21 @@ export const learningSessionsTable = pgTable("learning_sessions", {
   completedAt: timestamp("completed_at", { withTimezone: true }),
 });
 
+export const recurringMistakesTable = pgTable(
+  "recurring_mistakes",
+  {
+    id: integer("id").generatedAlwaysAsIdentity().primaryKey(),
+    learnerId: text("learner_id").notNull(),
+    pattern: text("pattern").notNull(),
+    explanation: text("explanation").notNull(),
+    count: integer("count").notNull().default(1),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [unique("recurring_mistakes_learner_pattern_unique").on(table.learnerId, table.pattern)],
+);
+
 export type SavedWord = typeof savedWordsTable.$inferSelect;
 export type LearnedWord = typeof learnedWordsTable.$inferSelect;
 export type QuizAttempt = typeof quizAttemptsTable.$inferSelect;
 export type LearningSession = typeof learningSessionsTable.$inferSelect;
+export type RecurringMistake = typeof recurringMistakesTable.$inferSelect;

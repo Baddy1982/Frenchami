@@ -119,6 +119,60 @@ export interface TranslationResult {
   note: string;
 }
 
+export type TutorMessageInputLevel = typeof TutorMessageInputLevel[keyof typeof TutorMessageInputLevel];
+
+
+export const TutorMessageInputLevel = {
+  beginner: 'beginner',
+  intermediate: 'intermediate',
+  advanced: 'advanced',
+} as const;
+
+export type TutorHistoryMessageRole = typeof TutorHistoryMessageRole[keyof typeof TutorHistoryMessageRole];
+
+
+export const TutorHistoryMessageRole = {
+  user: 'user',
+  assistant: 'assistant',
+} as const;
+
+export interface TutorHistoryMessage {
+  role: TutorHistoryMessageRole;
+  /**
+     * @minLength 1
+     * @maxLength 2000
+     */
+  content: string;
+}
+
+export interface TutorMessageInput {
+  level: TutorMessageInputLevel;
+  /**
+     * @minLength 1
+     * @maxLength 2000
+     */
+  message: string;
+  /** @maxItems 20 */
+  history: TutorHistoryMessage[];
+}
+
+export interface TutorMessageResponse {
+  reply: string;
+  explanation: string;
+  /** @nullable */
+  correction: string | null;
+  /** @nullable */
+  naturalPhrase: string | null;
+  mistakes: string[];
+}
+
+export interface RecurringMistake {
+  pattern: string;
+  explanation: string;
+  count: number;
+  lastSeenAt: string;
+}
+
 export type BillingPlanId = typeof BillingPlanId[keyof typeof BillingPlanId];
 
 

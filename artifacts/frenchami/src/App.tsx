@@ -28,6 +28,7 @@ import {
   Send,
   Settings2,
   Sparkles,
+  MessageCircle,
   Target,
   TrendingUp,
   Volume2,
@@ -60,6 +61,9 @@ import {
   useListVocabularyCategories,
   useSearchDictionary,
   useTranslateText,
+  useSendTutorMessage,
+  useGetTutorMistakes,
+  getGetTutorMistakesQueryKey,
 } from '@workspace/api-client-react';
 import type {
   Dashboard,
@@ -74,6 +78,7 @@ import type {
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { commitLearningState, learningStateQueryOptions } from '@/lib/learning-cache';
 import NotFound from '@/pages/not-found';
 import { Link, Route, Router as WouterRouter, Switch, useLocation, useParams } from 'wouter';
 
@@ -109,6 +114,7 @@ const navItems = [
   { href: '/conjugation', label: 'Conjugation', icon: RotateCcw },
   { href: '/vocabulary', label: 'Vocabulary', icon: BookMarked },
   { href: '/practice', label: 'Practice', icon: Target },
+  { href: '/tutor', label: 'AI Tutor', icon: MessageCircle },
   { href: '/dashboard', label: 'Progress', icon: BarChart3 },
 ];
 
@@ -250,10 +256,10 @@ function Dictionary() {
   const initial = new URLSearchParams(window.location.search).get('query') ?? params.word ?? '';
   const [query, setQuery] = useState(initial);
   const [selected, setSelected] = useState('');
-  const learningState = useGetLearningState({ query: { enabled: Boolean(user), queryKey: getGetLearningStateQueryKey(), staleTime: 30000 } });
+  const learningState = useGetLearningState({ query: learningStateQueryOptions(Boolean(user)) });
   const saved = (learningState.data as { savedWords?: string[] } | undefined)?.savedWords ?? [];
-  const saveWord = useSaveWord({ mutation: { onSuccess: () => queryClient.invalidateQueries({ queryKey: getGetLearningStateQueryKey() }) } });
-  const unsaveWord = useUnsaveWord({ mutation: { onSuccess: () => queryClient.invalidateQueries({ queryKey: getGetLearningStateQueryKey() }) } });
+  const saveWord = useSaveWord({ mutation: { onSuccess: (state) => commitLearningState(queryClient, state) } });
+  const unsaveWord = useUnsaveWord({ mutation: { onSuccess: (state) => commitLearningState(queryClient, state) } });
   const results = useSearchDictionary({ q: query.trim() }, { query: { enabled: query.trim().length > 0, queryKey: getSearchDictionaryQueryKey({ q: query.trim() }) } });
   const entry = useGetDictionaryEntry(selected, { query: { enabled: !!selected, queryKey: getGetDictionaryEntryQueryKey(selected) } });
   const words = (results.data as DictionaryEntry[] | undefined) ?? [];
@@ -323,13 +329,13 @@ function Vocabulary() {
   const [, setLocation] = useLocation();
   const { user } = useUser();
   const [selectedCategory, setSelectedCategory] = useState('');
-  const learningState = useGetLearningState({ query: { enabled: Boolean(user), queryKey: getGetLearningStateQueryKey(), staleTime: 30000 } });
+  const learningState = useGetLearningState({ query: learningStateQueryOptions(Boolean(user)) });
   const state = learningState.data as { savedWords?: string[]; learnedWords?: string[] } | undefined;
   const saved = state?.savedWords ?? [];
   const learned = state?.learnedWords ?? [];
-  const saveWord = useSaveWord({ mutation: { onSuccess: () => queryClient.invalidateQueries({ queryKey: getGetLearningStateQueryKey() }) } });
-  const unsaveWord = useUnsaveWord({ mutation: { onSuccess: () => queryClient.invalidateQueries({ queryKey: getGetLearningStateQueryKey() }) } });
-  const markLearned = useMarkWordLearned({ mutation: { onSuccess: () => { queryClient.invalidateQueries({ queryKey: getGetLearningStateQueryKey() }); queryClient.invalidateQueries({ queryKey: getGetVocabularyQueryKey(selected) }); queryClient.invalidateQueries({ queryKey: getGetDashboardQueryKey() }); } } });
+  const saveWord = useSaveWord({ mutation: { onSuccess: (state) => commitLearningState(queryClient, state) } });
+  const unsaveWord = useUnsaveWord({ mutation: { onSuccess: (state) => commitLearningState(queryClient, state) } });
+  const markLearned = useMarkWordLearned({ mutation: { onSuccess: (state) => commitLearningState(queryClient, state, { vocabularyCategory: selected, refreshDashboard: true }) } });
   const categories = useListVocabularyCategories({ query: { queryKey: getListVocabularyCategoriesQueryKey(), staleTime: 120000 } });
   const categoryData = categories.data as VocabularyCategory[] | undefined;
   const selected = selectedCategory || categoryData?.[0]?.slug || '';
@@ -346,10 +352,7 @@ function Practice() {
   const data = quiz.data as Quiz | undefined;
   const [selected, setSelected] = useState<string | null>(null);
   const [done, setDone] = useState(false);
-  const recordAttempt = useRecordQuizAttempt({ mutation: { onSuccess: () => {
-    queryClient.invalidateQueries({ queryKey: getGetLearningStateQueryKey() });
-    queryClient.invalidateQueries({ queryKey: getGetDashboardQueryKey() });
-  } } });
+  const recordAttempt = useRecordQuizAttempt({ mutation: { onSuccess: (state) => commitLearningState(queryClient, state, { refreshDashboard: true }) } });
   const choose = (option: string) => {
     if (!done && data) {
       setSelected(option);
@@ -369,13 +372,39 @@ function Practice() {
   </div>;
 }
 
+function Tutor() {
+  const [level, setLevel] = useState<'beginner' | 'intermediate' | 'advanced'>('beginner');
+  const [draft, setDraft] = useState('');
+  const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string; explanation?: string; correction?: string | null; naturalPhrase?: string | null }[]>([
+    { role: 'assistant', content: 'Bonjour ! Je suis ton ami de conversation. Qu’est-ce que tu as fait aujourd’hui ?', explanation: 'Hello! I’m your conversation friend. What did you do today?' },
+  ]);
+  const send = useSendTutorMessage({
+    mutation: {
+      onSuccess: (response) => {
+        setMessages((current) => [...current, { role: 'assistant', content: response.reply, explanation: response.explanation, correction: response.correction, naturalPhrase: response.naturalPhrase }]);
+        queryClient.invalidateQueries({ queryKey: getGetTutorMistakesQueryKey() });
+      },
+    },
+  });
+  const submit = () => {
+    const message = draft.trim();
+    if (!message || send.isPending) return;
+    setDraft('');
+    setMessages((current) => [...current, { role: 'user', content: message }]);
+    send.mutate({ data: { level, message, history: messages.map(({ role, content }) => ({ role, content })) } });
+  };
+  return <div className="content"><div className="mb-8 flex flex-wrap items-end justify-between gap-4"><div><div className="eyebrow">Your patient conversation partner</div><h1 className="page-heading">Speak freely<span className="text-[#f47c52]">.</span></h1><p className="page-subheading">Try a French thought. I’ll keep the conversation going, explain the tricky bits in English, and help your phrasing sound more natural.</p></div><Link href="/dashboard" className="button-secondary"><BarChart3 size={14} /> See patterns</Link></div>
+    <div className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-[1fr_280px]"><section className="card overflow-hidden"><div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-[#e8f5ed] p-5"><div><div className="section-title">A little café chat</div><div className="mt-1 text-xs text-muted-foreground">No grades here. Just useful momentum.</div></div><div className="flex rounded-xl bg-white/70 p-1">{(['beginner', 'intermediate', 'advanced'] as const).map((item) => <button key={item} onClick={() => setLevel(item)} className={`rounded-lg px-3 py-2 text-[10px] font-bold capitalize ${level === item ? 'bg-[#247a61] text-white' : 'text-muted-foreground'}`} data-testid={`button-tutor-level-${item}`}>{item}</button>)}</div></div><div className="max-h-[520px] space-y-5 overflow-y-auto p-5 sm:p-7">{messages.map((message, index) => <div key={`${message.role}-${index}`} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}><div className={`max-w-[88%] ${message.role === 'user' ? 'items-end' : 'items-start'}`}><div className={`rounded-2xl px-4 py-3 text-sm leading-6 ${message.role === 'user' ? 'rounded-br-sm bg-[#247a61] text-white' : 'rounded-bl-sm bg-[#f5f0e4]'}`}>{message.content}</div>{message.role === 'assistant' && <div className="mt-2 space-y-1 pl-2 text-[11px] leading-5 text-muted-foreground">{message.explanation && <p><span className="font-semibold text-[#247a61]">English:</span> {message.explanation}</p>}{message.correction && <p><span className="font-semibold text-[#c56a46]">Correction:</span> {message.correction}</p>}{message.naturalPhrase && <p><span className="font-semibold text-[#1f5ebd]">More natural:</span> {message.naturalPhrase}</p>}</div>}</div></div>)}{send.isPending && <div className="text-xs text-muted-foreground">Your tutor is thinking…</div>}{send.isError && <p className="rounded-lg bg-[#fae4dc] p-3 text-xs text-[#93452e]">I couldn’t reach your tutor. Please try again.</p>}</div><div className="border-t border-border p-4"><div className="flex gap-2"><input value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') submit(); }} placeholder="Écris quelque chose en français…" className="min-h-[44px] flex-1 rounded-xl border border-border bg-[#fffdf7] px-4 text-sm outline-none focus:border-[#247a61]" data-testid="input-tutor-message" /><button className="button-primary" onClick={submit} disabled={send.isPending || !draft.trim()} data-testid="button-send-tutor"><Send size={15} /> Send</button></div></div></section><aside className="card h-fit p-5"><div className="mb-4 flex items-center gap-2"><Sparkles size={16} className="text-[#f47c52]" /><div className="section-title text-base">How it works</div></div><ul className="space-y-3 text-xs leading-5 text-muted-foreground"><li><strong className="text-foreground">Stay in French.</strong> Your tutor answers in French and explains in English.</li><li><strong className="text-foreground">Make mistakes.</strong> Corrections are kind, specific, and saved to your progress.</li><li><strong className="text-foreground">Choose your stretch.</strong> Switch levels whenever you want.</li></ul></aside></div>
+  </div>;
+}
 function Dashboard() {
   const { user } = useUser();
   const dashboard = useGetDashboard({ query: { enabled: Boolean(user), queryKey: getGetDashboardQueryKey(), staleTime: 60000 } });
   const data = dashboard.data as Dashboard | undefined;
+  const mistakes = useGetTutorMistakes({ query: { queryKey: getGetTutorMistakesQueryKey(), staleTime: 30000 } });
   if (!user) return <div className="content"><div className="mb-8"><div className="eyebrow">A quiet look back</div><h1 className="page-heading">Your progress<span className="text-[#f47c52]">.</span></h1><p className="page-subheading">Your personal learning trail will be ready when you are.</p></div><AuthPrompt title="Save your Frenchami journey" text="Create a free account to track learned words, practice results, streaks, and XP across visits." /></div>;
   return <div className="content"><div className="mb-8 flex flex-wrap items-end justify-between gap-4"><div><div className="eyebrow">A quiet look back</div><h1 className="page-heading">Your progress<span className="text-[#f47c52]">.</span></h1><p className="page-subheading">You do not need a perfect week. You need a thread you can pick up again.</p></div><Link href="/practice" className="button-primary" data-testid="link-dashboard-practice"><Play size={14} fill="currentColor" /> Continue practice</Link></div>
-    {dashboard.isLoading ? <LoadingBlock rows={6} /> : dashboard.isError ? <ErrorMessage onRetry={() => dashboard.refetch()} /> : data ? <><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><MiniStat icon={BookOpen} label="Words learned" value={data.wordsLearned} detail="A growing working set" /><MiniStat icon={Flame} label="Current streak" value={`${data.streak} days`} detail="Your most useful habit" tone="orange" /><MiniStat icon={Sparkles} label="Total XP" value={data.xp} detail="Earned through practice" /><MiniStat icon={TrendingUp} label="Level" value={data.level} detail="Keep exploring" tone="green" /></div><div className="mt-6 grid gap-6 lg:grid-cols-[1.15fr_.85fr]"><section className="card p-6 sm:p-7"><div className="mb-8 flex items-center justify-between"><div><div className="section-title">Level journey</div><p className="mt-1 text-xs text-muted-foreground">Progress is a collection of ordinary days.</p></div><span className="chip chip-blue">{data.progress}%</span></div><div className="mb-3 flex items-end justify-between"><div className="font-display text-3xl font-bold">{data.level}</div><span className="font-mono-ui text-[10px] text-muted-foreground">next chapter</span></div><div className="progress-track h-3"><div className="progress-bar" style={{ width: `${data.progress}%` }} /></div><div className="mt-4 flex justify-between text-[10px] text-muted-foreground"><span>Keep showing up</span><span>{100 - data.progress} points to go</span></div><div className="mt-9 grid grid-cols-7 gap-2">{['M','T','W','T','F','S','S'].map((day, index) => <div key={`${day}-${index}`} className="text-center"><div className={`mx-auto mb-2 h-8 w-8 rounded-lg ${index < 4 ? 'bg-[#2d897c]' : index === 4 ? 'bg-[#f47c52]' : 'bg-[#e9e3d5]'}`} /> <span className="font-mono-ui text-[9px] text-muted-foreground">{day}</span></div>)}</div></section><section className="card p-6 sm:p-7"><div className="mb-6 flex items-center justify-between"><div><div className="section-title">Your next best move</div><p className="mt-1 text-xs text-muted-foreground">A recommendation, not a demand.</p></div><Lightbulb size={20} className="text-[#f47c52]" /></div><div className="rounded-xl bg-[#f5f0e4] p-4"><div className="font-mono-ui text-[10px] uppercase tracking-[.14em] text-[#b65c36]">Weak spot</div><div className="mt-2 font-display text-xl font-bold">{data.weakSpot}</div><p className="mt-2 text-xs leading-5 text-muted-foreground">Spend five minutes with a few examples, then use one in your own sentence.</p><Link href="/conjugation" className="button-secondary mt-4" data-testid="link-dashboard-recommendation">Review it <ArrowRight size={13} /></Link></div><div className="mt-7"><div className="mb-3 flex items-center justify-between"><span className="text-xs font-semibold">Recently touched</span><Link href="/vocabulary" className="text-[11px] font-semibold text-[#1f5ebd]" data-testid="link-dashboard-vocabulary">Open vocabulary</Link></div>{data.recentWords?.length ? <div className="flex flex-wrap gap-2">{data.recentWords.map((word) => <span className="chip" key={word}>{word}</span>)}</div> : <p className="text-xs text-muted-foreground">Your recent words will collect here.</p>}</div></section></div></> : <EmptyState title="Your story starts here" text="Complete your first practice and your progress will begin to take shape." />}
+    {dashboard.isLoading ? <LoadingBlock rows={6} /> : dashboard.isError ? <ErrorMessage onRetry={() => dashboard.refetch()} /> : data ? <><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><MiniStat icon={BookOpen} label="Words learned" value={data.wordsLearned} detail="A growing working set" /><MiniStat icon={Flame} label="Current streak" value={`${data.streak} days`} detail="Your most useful habit" tone="orange" /><MiniStat icon={Sparkles} label="Total XP" value={data.xp} detail="Earned through practice" /><MiniStat icon={TrendingUp} label="Level" value={data.level} detail="Keep exploring" tone="green" /></div><div className="mt-6 grid gap-6 lg:grid-cols-[1.15fr_.85fr]"><section className="card p-6 sm:p-7"><div className="mb-8 flex items-center justify-between"><div><div className="section-title">Level journey</div><p className="mt-1 text-xs text-muted-foreground">Progress is a collection of ordinary days.</p></div><span className="chip chip-blue">{data.progress}%</span></div><div className="mb-3 flex items-end justify-between"><div className="font-display text-3xl font-bold">{data.level}</div><span className="font-mono-ui text-[10px] text-muted-foreground">next chapter</span></div><div className="progress-track h-3"><div className="progress-bar" style={{ width: `${data.progress}%` }} /></div><div className="mt-4 flex justify-between text-[10px] text-muted-foreground"><span>Keep showing up</span><span>{100 - data.progress} points to go</span></div><div className="mt-9 grid grid-cols-7 gap-2">{['M','T','W','T','F','S','S'].map((day, index) => <div key={`${day}-${index}`} className="text-center"><div className={`mx-auto mb-2 h-8 w-8 rounded-lg ${index < 4 ? 'bg-[#2d897c]' : index === 4 ? 'bg-[#f47c52]' : 'bg-[#e9e3d5]'}`} /> <span className="font-mono-ui text-[9px] text-muted-foreground">{day}</span></div>)}</div></section><section className="card p-6 sm:p-7"><div className="mb-6 flex items-center justify-between"><div><div className="section-title">Your next best move</div><p className="mt-1 text-xs text-muted-foreground">A recommendation, not a demand.</p></div><Lightbulb size={20} className="text-[#f47c52]" /></div><div className="rounded-xl bg-[#f5f0e4] p-4"><div className="font-mono-ui text-[10px] uppercase tracking-[.14em] text-[#b65c36]">Weak spot</div><div className="mt-2 font-display text-xl font-bold">{data.weakSpot}</div><p className="mt-2 text-xs leading-5 text-muted-foreground">Spend five minutes with a few examples, then use one in your own sentence.</p><Link href="/conjugation" className="button-secondary mt-4" data-testid="link-dashboard-recommendation">Review it <ArrowRight size={13} /></Link></div><div className="mt-7"><div className="mb-3 flex items-center justify-between"><span className="text-xs font-semibold">Recently touched</span><Link href="/vocabulary" className="text-[11px] font-semibold text-[#1f5ebd]" data-testid="link-dashboard-vocabulary">Open vocabulary</Link></div>{data.recentWords?.length ? <div className="flex flex-wrap gap-2">{data.recentWords.map((word) => <span className="chip" key={word}>{word}</span>)}</div> : <p className="text-xs text-muted-foreground">Your recent words will collect here.</p>}</div></section></div><section className="card mt-6 p-6 sm:p-7"><div className="mb-5 flex items-center justify-between"><div><div className="section-title">Patterns to revisit</div><p className="mt-1 text-xs text-muted-foreground">Your tutor keeps track of patterns that come up more than once.</p></div><Link href="/tutor" className="button-secondary">Practice with tutor <MessageCircle size={13} /></Link></div>{mistakes.isLoading ? <LoadingBlock rows={2} /> : mistakes.data?.length ? <div className="grid gap-3 md:grid-cols-2">{mistakes.data.slice(0, 6).map((mistake) => <div className="rounded-xl bg-[#f5f0e4] p-4" key={mistake.pattern}><div className="flex items-center justify-between"><span className="font-display font-bold">{mistake.pattern}</span><span className="chip chip-orange">{mistake.count}×</span></div><p className="mt-2 text-xs leading-5 text-muted-foreground">{mistake.explanation}</p></div>)}</div> : <p className="text-xs text-muted-foreground">Start a conversation and your recurring patterns will appear here.</p>}</section></> : <EmptyState title="Your story starts here" text="Complete your first practice and your progress will begin to take shape." />}
   </div>;
 }
 
@@ -447,7 +476,7 @@ function Pricing() {
 }
 
 function Router() {
-  return <ErrorBoundary resetKey={useLocation()[0]}><Shell><Switch><Route path="/" component={Home} /><Route path="/dictionary" component={Dictionary} /><Route path="/dictionary/:word" component={Dictionary} /><Route path="/translate" component={Translate} /><Route path="/conjugation" component={Conjugation} /><Route path="/vocabulary" component={Vocabulary} /><Route path="/practice" component={Practice} /><Route path="/dashboard" component={Dashboard} /><Route path="/pricing" component={Pricing} /><Route component={NotFound} /></Switch></Shell></ErrorBoundary>;
+  return <ErrorBoundary resetKey={useLocation()[0]}><Shell><Switch><Route path="/" component={Home} /><Route path="/dictionary" component={Dictionary} /><Route path="/dictionary/:word" component={Dictionary} /><Route path="/translate" component={Translate} /><Route path="/conjugation" component={Conjugation} /><Route path="/vocabulary" component={Vocabulary} /><Route path="/practice" component={Practice} /><Route path="/tutor" component={Tutor} /><Route path="/dashboard" component={Dashboard} /><Route path="/pricing" component={Pricing} /><Route component={NotFound} /></Switch></Shell></ErrorBoundary>;
 }
 
 function PublicRouter() {
