@@ -1,12 +1,60 @@
 import { chromium } from "playwright";
 
-const checks = [
+const frenchamiUrl = process.env.FRENCHAMI_URL ?? "http://127.0.0.1:4173/";
+
+const frenchamiChecks = [
   {
     name: "Frenchami root",
     route: "/",
-    url: process.env.FRENCHAMI_URL ?? "http://127.0.0.1:4173/",
     heading: "Make French feel like yours.",
   },
+  {
+    name: "Frenchami dictionary",
+    route: "/dictionary",
+    heading: "Dictionary.",
+  },
+  {
+    name: "Frenchami translation",
+    route: "/translate",
+    heading: "Translate.",
+  },
+  {
+    name: "Frenchami conjugation",
+    route: "/conjugation",
+    heading: "Conjugation.",
+  },
+  {
+    name: "Frenchami vocabulary",
+    route: "/vocabulary",
+    heading: "Vocabulary.",
+  },
+  {
+    name: "Frenchami practice",
+    route: "/practice",
+    heading: "Daily practice.",
+  },
+  {
+    name: "Frenchami tutor",
+    route: "/tutor",
+    heading: "Speak freely.",
+  },
+  {
+    name: "Frenchami dashboard",
+    route: "/dashboard",
+    heading: "Your progress.",
+  },
+  {
+    name: "Frenchami pricing",
+    route: "/pricing",
+    heading: "Learn with more room to grow.",
+  },
+].map((check) => ({
+  ...check,
+  url: new URL(check.route.slice(1), frenchamiUrl).toString(),
+}));
+
+const checks = [
+  ...frenchamiChecks,
   {
     name: "Mockup sandbox",
     route: "/__mockup/",
