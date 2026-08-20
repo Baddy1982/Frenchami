@@ -18,6 +18,7 @@ export * from './dictionaryEntry';
 export * from './getBillingAccessParams';
 export * from './healthStatus';
 export * from './learnedWordInput';
+export * from './learningActivity';
 export * from './learningState';
 export * from './quiz';
 export * from './quizAttempt';
