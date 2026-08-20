@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Frenchami"
+description = "An AI-powered French learning companion for English-speaking learners, with dictionary search, translations, conjugation, vocabulary practice, quizzes, and progress tracking."
+version = "1.0.0"
+id = "artifacts/frenchami"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25471
+
+[services.development]
+run = "pnpm --filter @workspace/frenchami run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/frenchami", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/frenchami/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25471"
+BASE_PATH = "/"
