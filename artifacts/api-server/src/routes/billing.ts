@@ -7,9 +7,9 @@ import {
   GetBillingPlansResponse,
 } from "@workspace/api-zod";
 import { getUncachableStripeClient } from "../stripeClient";
+import { verifyPremiumAccess } from "../premiumAccess";
 
 const router: IRouter = Router();
-const premiumAccessUrl = "https://app.frenchami.com/authentication/access-request?organization=49";
 const appOrigin = () => {
   const domain = process.env.REPLIT_DOMAINS?.split(",")[0];
   return domain ? `https://${domain}` : "http://localhost";
@@ -100,28 +100,11 @@ router.get("/billing/access", requireAuth, async (req: AuthenticatedRequest, res
   try {
     const stripe = await getUncachableStripeClient();
     const sessionId = typeof req.query.session_id === "string" ? req.query.session_id : undefined;
-    let active = false;
-    let planId: string | null = null;
-
-    if (sessionId) {
-      const session = await stripe.checkout.sessions.retrieve(sessionId, { expand: ["subscription"] });
-      const sessionUserId = session.client_reference_id ?? session.metadata?.frenchamiUserId;
-      const subscription = typeof session.subscription === "object" ? session.subscription : null;
-      active = sessionUserId === req.userId
-        && session.payment_status === "paid"
-        && Boolean(subscription && subscription.status === "active");
-      planId = active ? session.metadata?.frenchamiPlanId ?? null : null;
-    } else {
-      const subscriptions = await stripe.subscriptions.search({
-        query: `metadata['frenchamiUserId']:'${req.userId}'`,
-        limit: 20,
-      });
-      const subscription = subscriptions.data.find((candidate) => candidate.status === "active");
-      active = Boolean(subscription);
-      planId = subscription?.metadata?.frenchamiPlanId ?? null;
-    }
-
-    return res.json(GetBillingAccessResponse.parse({ active, planId, premiumUrl: active ? premiumAccessUrl : null }));
+    return res.json(GetBillingAccessResponse.parse(await verifyPremiumAccess({
+      stripe,
+      userId: req.userId!,
+      sessionId,
+    })));
   } catch (error) {
     return res.status(503).json({ error: error instanceof Error ? error.message : "Unable to verify premium access." });
   }
