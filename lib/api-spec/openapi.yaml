@@ -1,0 +1,433 @@
+openapi: 3.1.0
+info:
+  title: Api
+  version: 0.1.0
+  description: Frenchami learning API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+  - name: learning
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /dictionary:
+    get:
+      operationId: searchDictionary
+      tags: [learning]
+      summary: Search French dictionary
+      parameters:
+        - in: query
+          name: q
+          required: true
+          schema: { type: string, minLength: 1 }
+      responses:
+        "200":
+          description: Matching words
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/DictionaryEntry" }
+  /dictionary/{word}:
+    get:
+      operationId: getDictionaryEntry
+      tags: [learning]
+      summary: Get a dictionary entry
+      parameters:
+        - in: path
+          name: word
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Dictionary entry
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DictionaryEntry" }
+        "404":
+          description: Not found
+  /verbs/{verb}:
+    get:
+      operationId: getVerb
+      tags: [learning]
+      summary: Get verb conjugations
+      parameters:
+        - in: path
+          name: verb
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Verb
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Verb" }
+  /vocabulary/categories:
+    get:
+      operationId: listVocabularyCategories
+      tags: [learning]
+      summary: List vocabulary categories
+      responses:
+        "200":
+          description: Categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/VocabularyCategory" }
+  /vocabulary/{category}:
+    get:
+      operationId: getVocabulary
+      tags: [learning]
+      summary: Get vocabulary words
+      parameters:
+        - in: path
+          name: category
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Vocabulary
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/VocabularyWord" }
+  /quiz/daily:
+    get:
+      operationId: getDailyQuiz
+      tags: [learning]
+      summary: Get today's quiz
+      responses:
+        "200":
+          description: Quiz
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Quiz" }
+  /learning/state:
+    get:
+      operationId: getLearningState
+      tags: [learning]
+      summary: Get saved words and learning progress
+      responses:
+        "200":
+          description: Persisted learner state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LearningState" }
+  /learning/saved-words/{word}:
+    put:
+      operationId: saveWord
+      tags: [learning]
+      summary: Save a word for later
+      parameters:
+        - { in: path, name: word, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Updated learning state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LearningState" }
+    delete:
+      operationId: unsaveWord
+      tags: [learning]
+      summary: Remove a saved word
+      parameters:
+        - { in: path, name: word, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Updated learning state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LearningState" }
+  /learning/words/{word}:
+    patch:
+      operationId: markWordLearned
+      tags: [learning]
+      summary: Mark a word learned or unlearned
+      parameters:
+        - { in: path, name: word, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LearnedWordInput" }
+      responses:
+        "200":
+          description: Updated learning state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LearningState" }
+  /learning/quiz-attempts:
+    post:
+      operationId: recordQuizAttempt
+      tags: [learning]
+      summary: Record a quiz attempt and award XP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/QuizAttemptInput" }
+      responses:
+        "200":
+          description: Updated learning state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LearningState" }
+  /dashboard:
+    get:
+      operationId: getDashboard
+      tags: [learning]
+      summary: Get learner dashboard summary
+      responses:
+        "200":
+          description: Dashboard
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Dashboard" }
+  /translate:
+    post:
+      operationId: translateText
+      tags: [learning]
+      summary: Translate a French or English phrase with learning context
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TranslationInput"
+      responses:
+        "200":
+          description: Translation result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TranslationResult"
+  /billing/plans:
+    get:
+      operationId: getBillingPlans
+      tags: [billing]
+      summary: List Frenchami premium subscription plans
+      responses:
+        "200":
+          description: Available subscription plans
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/BillingPlan" }
+  /billing/checkout:
+    post:
+      operationId: createBillingCheckout
+      tags: [billing]
+      summary: Start a Stripe subscription checkout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BillingCheckoutInput" }
+      responses:
+        "200":
+          description: Hosted Stripe Checkout URL
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BillingCheckout" }
+  /billing/access:
+    get:
+      operationId: getBillingAccess
+      tags: [billing]
+      summary: Verify a learner's premium subscription access
+      parameters:
+        - in: query
+          name: session_id
+          required: false
+          schema: { type: string }
+      responses:
+        "200":
+          description: Current premium access state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BillingAccess" }
+components:
+  securitySchemes:
+    clerkSession:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    HealthStatus:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string }
+    DictionaryEntry:
+      type: object
+      required: [word, translation, definition, partOfSpeech, level, examples, related]
+      properties:
+        word: { type: string }
+        translation: { type: string }
+        definition: { type: string }
+        partOfSpeech: { type: string }
+        gender: { type: ["string", "null"] }
+        pronunciation: { type: string }
+        level: { type: string }
+        examples:
+          type: array
+          items: { type: string }
+        related:
+          type: array
+          items: { type: string }
+    Verb:
+      type: object
+      required: [verb, translation, group, tenses]
+      properties:
+        verb: { type: string }
+        translation: { type: string }
+        group: { type: string }
+        tenses:
+          type: array
+          items: { $ref: "#/components/schemas/VerbTense" }
+    VerbTense:
+      type: object
+      required: [name, forms, example]
+      properties:
+        name: { type: string }
+        forms:
+          type: array
+          items: { type: string }
+        example: { type: string }
+    VocabularyCategory:
+      type: object
+      required: [slug, name, description, wordCount, color]
+      properties:
+        slug: { type: string }
+        name: { type: string }
+        description: { type: string }
+        wordCount: { type: number }
+        color: { type: string }
+    VocabularyWord:
+      type: object
+      required: [word, translation, pronunciation, example, learned]
+      properties:
+        word: { type: string }
+        translation: { type: string }
+        pronunciation: { type: string }
+        example: { type: string }
+        learned: { type: boolean }
+    Quiz:
+      type: object
+      required: [title, question, options, answer, xp]
+      properties:
+        title: { type: string }
+        question: { type: string }
+        options:
+          type: array
+          items: { type: string }
+        answer: { type: string }
+        xp: { type: number }
+    Dashboard:
+      type: object
+      required: [wordsLearned, streak, xp, level, progress, weakSpot, recentWords]
+      properties:
+        wordsLearned: { type: number }
+        streak: { type: number }
+        xp: { type: number }
+        level: { type: string }
+        progress: { type: number }
+        weakSpot: { type: string }
+        recentWords:
+          type: array
+          items: { type: string }
+    LearningState:
+      type: object
+      required: [savedWords, learnedWords, quizAttempts, xp]
+      properties:
+        savedWords:
+          type: array
+          items: { type: string }
+        learnedWords:
+          type: array
+          items: { type: string }
+        quizAttempts:
+          type: array
+          items: { $ref: "#/components/schemas/QuizAttempt" }
+        xp: { type: number }
+    QuizAttempt:
+      type: object
+      required: [quizId, answer, correct, xp, attemptedOn]
+      properties:
+        quizId: { type: string }
+        answer: { type: string }
+        correct: { type: boolean }
+        xp: { type: number }
+        attemptedOn: { type: string }
+    LearnedWordInput:
+      type: object
+      required: [learned]
+      properties:
+        learned: { type: boolean }
+    QuizAttemptInput:
+      type: object
+      required: [quizId, answer, correct, xp]
+      properties:
+        quizId: { type: string }
+        answer: { type: string }
+        correct: { type: boolean }
+        xp: { type: number, minimum: 0 }
+    TranslationInput:
+      type: object
+      required: [text, direction]
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        direction:
+          type: string
+          enum: [auto, en-fr, fr-en]
+    TranslationResult:
+      type: object
+      required: [translation, note]
+      properties:
+        translation: { type: string }
+        note: { type: string }
+    BillingPlan:
+      type: object
+      required: [id, name, description, amount, currency, interval, priceId]
+      properties:
+        id: { type: string, enum: [basic, platinum] }
+        name: { type: string }
+        description: { type: string }
+        amount: { type: number, minimum: 0 }
+        currency: { type: string }
+        interval: { type: string, enum: [month, year] }
+        priceId: { type: string }
+    BillingCheckoutInput:
+      type: object
+      required: [planId]
+      properties:
+        planId: { type: string, enum: [basic, platinum] }
+    BillingCheckout:
+      type: object
+      required: [url]
+      properties:
+        url: { type: string }
+    BillingAccess:
+      type: object
+      required: [active, planId, premiumUrl]
+      properties:
+        active: { type: boolean }
+        planId: { type: ["string", "null"] }
+        premiumUrl: { type: ["string", "null"] }

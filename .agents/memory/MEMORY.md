@@ -1,0 +1,4 @@
+- [Learner progress persistence](learner-progress-persistence.md) — progress mutations use a stable demo learner until authentication supplies identity.
+- [Clerk in-app routing](clerk-in-app-routing.md) — production auth must use same-host `/sign-in` routes and the Clerk proxy, not hosted accounts redirects.
+- [Free access and learner accounts](free-access-and-learner-accounts.md) — core learning tools stay public; accounts begin when learners save progress or upgrade.
+- [Stripe connection runtime](stripe-connection-runtime.md) — this Stripe connector exposes `settings.secret`; bundled Stripe sync migrations must ship beside server output.
